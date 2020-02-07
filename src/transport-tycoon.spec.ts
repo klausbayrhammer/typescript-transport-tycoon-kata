@@ -1,5 +1,5 @@
 import transportTycoon, {Destination} from './transport-tycoon';
-import { expect } from 'chai';
+import {expect} from 'chai';
 
 describe('transport-tycoon.ts', function () {
     it('deliverytime is zero if there are no orders', function () {
@@ -19,5 +19,11 @@ describe('transport-tycoon.ts', function () {
     });
     it('deliverytime is 13 with two deliveries to A', function () {
         expect(transportTycoon([Destination.A, Destination.A])).to.equal(13);
+    });
+    it('deliverytime is 13 with two deliveries to A', function () {
+        expect(transportTycoon([Destination.A, Destination.B, Destination.B])).to.equal(7);
+    });
+    it('deliverytime is 15 with ABBB', function () {
+        expect(transportTycoon([Destination.A, Destination.B, Destination.B, Destination.B])).to.equal(15);
     });
 });
