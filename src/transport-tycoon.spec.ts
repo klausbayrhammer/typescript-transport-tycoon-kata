@@ -12,6 +12,6 @@ describe('transport-tycoon.ts', function () {
         expect(transportTycoon([Destination.B, Destination.B])).to.equal(5);
     });
     it('deliverytime is 10 with three orders to B', function () {
-        expect(transportTycoon([Destination.B, Destination.B, Destination.B])).to.equal(10);
+        expect(transportTycoon([Destination.B, Destination.B, Destination.B])).to.equal(15);
     });
 });

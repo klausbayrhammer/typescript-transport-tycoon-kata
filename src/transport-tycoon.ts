@@ -3,9 +3,9 @@ export enum Destination {
 }
 
 enum EventType {
-    ProduceOrder,
-    PickUpOrderAtFactory,
-    OrderDeliveredAtDestination
+    ProduceOrder = 'ProduceOrder',
+    PickUpOrderAtFactory = 'PickUpOrderAtFactory',
+    OrderDeliveredAtDestination = 'OrderDeliveredAtDestination'
 }
 
 type TransportTycoonEvent = {
@@ -22,11 +22,15 @@ class EventStore {
     }
 
     public simulate() {
-        this.store.forEach(event => {
-            this.on(event);
-            this.processedEvents.push(event);
-        });
-        return Math.max(...this.store
+        for (let time: number = 0; !this.allOrdersDelivered(); time++) {
+            this.store
+                .filter(event => event.time === time)
+                .forEach(event => {
+                    this.on(event);
+                    this.processedEvents.push(event);
+                });
+        }
+        return Math.max(...this.processedEvents
             .filter(({type}) => type === EventType.OrderDeliveredAtDestination)
             .map(({time}) => time), 0);
     }
@@ -41,15 +45,21 @@ class EventStore {
         }
     }
 
+    private allOrdersDelivered(): boolean {
+        const ordersProduced = this.store.filter(({type}) => type === EventType.ProduceOrder).length;
+        const ordersDelivered = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtDestination).length;
+        return ordersProduced === ordersDelivered;
+    }
+
     private nextFactoryOrder(): TransportTycoonEvent {
         const ordersPickedUp = this.processedEvents.filter(({type}) => type === EventType.PickUpOrderAtFactory).length;
-        return this.processedEvents.filter(({type}) => type === EventType.ProduceOrder)[ordersPickedUp - 1]
+        return this.processedEvents.filter(({type}) => type === EventType.ProduceOrder)[ordersPickedUp]
     }
 }
 
 export default (orders: Destination[]) => {
     const eventStore = new EventStore();
-    orders.forEach(order => eventStore.addEvent(EventType.ProduceOrder, 0));
+    orders.forEach(() => eventStore.addEvent(EventType.ProduceOrder, 0));
     eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
     eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
     return eventStore.simulate();
