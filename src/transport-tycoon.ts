@@ -8,7 +8,8 @@ enum EventType {
     ProduceOrderB = 'ProduceOrderB',
     PickUpOrderAtFactory = 'PickUpOrderAtFactory',
     PickUpOrderAtPort = 'PickUpOrderAtPort',
-    OrderDeliveredAtDestination = 'OrderDeliveredAtDestination',
+    OrderDeliveredAtDestinationA = 'OrderDeliveredAtDestinationA',
+    OrderDeliveredAtDestinationB = 'OrderDeliveredAtDestinationB',
     OrderDeliveredAtPort = 'OrderDeliveredAtPort'
 }
 
@@ -35,7 +36,7 @@ class EventStore {
                 });
         }
         return Math.max(...this.processedEvents
-            .filter(({type}) => type === EventType.OrderDeliveredAtDestination)
+            .filter(({type}) => type === EventType.OrderDeliveredAtDestinationB || type === EventType.OrderDeliveredAtDestinationA)
             .map(({time}) => time), 0);
     }
 
@@ -45,7 +46,7 @@ class EventStore {
                 const anotherOrderAvailableForPickup = this.nextFactoryOrder();
                 if(anotherOrderAvailableForPickup) {
                     if (anotherOrderAvailableForPickup.type === EventType.ProduceOrderB) {
-                        this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 5);
+                        this.addEvent(EventType.OrderDeliveredAtDestinationB, event.time + 5);
                         this.addEvent(EventType.PickUpOrderAtFactory, event.time + 5 * 2);
                     } else if (anotherOrderAvailableForPickup.type === EventType.ProduceOrderA) {
                         this.addEvent(EventType.OrderDeliveredAtPort, event.time + 1);
@@ -56,7 +57,7 @@ class EventStore {
             case EventType.OrderDeliveredAtPort:
             case EventType.PickUpOrderAtPort: {
                 // if(this.isShipAvailable()) {
-                    this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 4);
+                    this.addEvent(EventType.OrderDeliveredAtDestinationA, event.time + 4);
                     this.addEvent(EventType.PickUpOrderAtPort, event.time + 4 * 2);
                 // }
             }
@@ -65,7 +66,7 @@ class EventStore {
 
     private allOrdersDelivered(): boolean {
         const ordersProduced = this.store.filter(({type}) => type === EventType.ProduceOrderA || type === EventType.ProduceOrderB).length;
-        const ordersDelivered = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtDestination).length;
+        const ordersDelivered = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtDestinationA || type === EventType.OrderDeliveredAtDestinationB ).length;
         return ordersProduced === ordersDelivered;
     }
 
