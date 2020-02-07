@@ -1,11 +1,15 @@
 export enum Destination {
-    B
+    A= 'A',
+    B = 'B'
 }
 
 enum EventType {
-    ProduceOrder = 'ProduceOrder',
+    ProduceOrderA = 'ProduceOrderA',
+    ProduceOrderB = 'ProduceOrderB',
     PickUpOrderAtFactory = 'PickUpOrderAtFactory',
-    OrderDeliveredAtDestination = 'OrderDeliveredAtDestination'
+    PickUpOrderAtPort = 'PickUpOrderAtPort',
+    OrderDeliveredAtDestination = 'OrderDeliveredAtDestination',
+    OrderDeliveredAtPort = 'OrderDeliveredAtPort'
 }
 
 type TransportTycoonEvent = {
@@ -38,28 +42,50 @@ class EventStore {
     on(event: TransportTycoonEvent) {
         switch (event.type) {
             case EventType.PickUpOrderAtFactory:
-                if (this.nextFactoryOrder()) {
-                    this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 5);
-                    this.addEvent(EventType.PickUpOrderAtFactory, event.time + 5 * 2);
+                const anotherOrderAvailableForPickup = this.nextFactoryOrder();
+                if(anotherOrderAvailableForPickup) {
+                    if (anotherOrderAvailableForPickup.type === EventType.ProduceOrderB) {
+                        this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 5);
+                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + 5 * 2);
+                    } else if (anotherOrderAvailableForPickup.type === EventType.ProduceOrderA) {
+                        this.addEvent(EventType.OrderDeliveredAtPort, event.time + 1);
+                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + 1 * 2);
+                    }
                 }
+                break;
+            case EventType.OrderDeliveredAtPort:
+            case EventType.PickUpOrderAtPort: {
+                // if(this.isShipAvailable()) {
+                    this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 4);
+                    this.addEvent(EventType.PickUpOrderAtPort, event.time + 4 * 2);
+                // }
+            }
         }
     }
 
     private allOrdersDelivered(): boolean {
-        const ordersProduced = this.store.filter(({type}) => type === EventType.ProduceOrder).length;
+        const ordersProduced = this.store.filter(({type}) => type === EventType.ProduceOrderA || type === EventType.ProduceOrderB).length;
         const ordersDelivered = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtDestination).length;
         return ordersProduced === ordersDelivered;
     }
 
-    private nextFactoryOrder(): TransportTycoonEvent {
+    private nextFactoryOrder(): TransportTycoonEvent | undefined {
         const ordersPickedUp = this.processedEvents.filter(({type}) => type === EventType.PickUpOrderAtFactory).length;
-        return this.processedEvents.filter(({type}) => type === EventType.ProduceOrder)[ordersPickedUp]
+        return this.processedEvents.filter(({type}) => type === EventType.ProduceOrderA || type === EventType.ProduceOrderB)[ordersPickedUp]
+    }
+
+    private isShipAvailable() {
+
+
     }
 }
 
 export default (orders: Destination[]) => {
     const eventStore = new EventStore();
-    orders.forEach(() => eventStore.addEvent(EventType.ProduceOrder, 0));
+    orders.forEach(order => {
+        const produceOrderEvent = order === Destination.B ? EventType.ProduceOrderB : EventType.ProduceOrderA;
+        eventStore.addEvent(produceOrderEvent, 0);
+    });
     eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
     eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
     return eventStore.simulate();
