@@ -1,106 +1,105 @@
 export enum Destination {
-    A= 'A',
+    A = 'A',
     B = 'B'
 }
 
 enum EventType {
-    ProduceOrderA = 'ProduceOrderA',
-    ProduceOrderB = 'ProduceOrderB',
     PickUpOrderAtFactory = 'PickUpOrderAtFactory',
     PickUpOrderAtPort = 'PickUpOrderAtPort',
-    OrderDeliveredAtDestinationA = 'OrderDeliveredAtDestinationA',
-    OrderDeliveredAtDestinationB = 'OrderDeliveredAtDestinationB',
-    OrderDeliveredAtPort = 'OrderDeliveredAtPort'
+    OrderDeliveredAtPort = 'OrderDeliveredAtPort',
+    OrderDeliveredAtDestination = 'OrderDeliveredAtDestination'
 }
+
+const deliveryTimeToPort = 1;
+const deliveryTimeToDestinationA = 4;
+const deliveryTimeToDestinationB = 5;
 
 type TransportTycoonEvent = {
     type: EventType;
     time: number;
 }
 
-class EventStore {
-    private allEvents: TransportTycoonEvent[] = [];
-    private processedEvents: TransportTycoonEvent[] = [];
+class TransportTycoon {
+    constructor(orders: Destination[]) {
+        this.state = {
+            orders,
+            numberOfOrders: orders.length,
+            ordersDelivered: 0,
+            shipAvailableAtPort: true,
+            ordersAvailableAtPort: 0
+        };
+        this.addEvent(EventType.PickUpOrderAtFactory, 0);
+        this.addEvent(EventType.PickUpOrderAtFactory, 0);
+    }
+
+    private state: {
+        orders: Destination[];
+        numberOfOrders: number;
+        ordersDelivered: number;
+        shipAvailableAtPort: boolean;
+        ordersAvailableAtPort: number;
+    };
+
+    private events: TransportTycoonEvent[] = [];
 
     public addEvent(type: EventType, time: number) {
-        this.allEvents.push({type, time})
+        this.events.push({type, time})
     }
 
     public simulate() {
-        for (let time: number = 0; !this.allOrdersDelivered(); time++) {
-            this.allEvents
+        for(let time:number = 0; ; time++){
+            this.events
                 .filter(event => event.time === time)
                 .forEach(event => {
                     this.on(event);
-                    this.processedEvents.push(event);
                 });
+
+            const allOrdersDelivered = this.state.numberOfOrders === this.state.ordersDelivered;
+            if(allOrdersDelivered) {
+                return time;
+            }
         }
-        return Math.max(...this.processedEvents
-            .filter(({type}) => type === EventType.OrderDeliveredAtDestinationB || type === EventType.OrderDeliveredAtDestinationA)
-            .map(({time}) => time), 0);
     }
 
     on(event: TransportTycoonEvent) {
         switch (event.type) {
             case EventType.PickUpOrderAtFactory:
-                const nextFactoryOrder = this.nextFactoryOrder();
-                if(nextFactoryOrder) {
-                    if (nextFactoryOrder.type === EventType.ProduceOrderB) {
-                        this.addEvent(EventType.OrderDeliveredAtDestinationB, event.time + 5);
-                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + 5 * 2);
-                    } else if (nextFactoryOrder.type === EventType.ProduceOrderA) {
-                        this.addEvent(EventType.OrderDeliveredAtPort, event.time + 1);
-                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + 1 * 2);
+                if (this.state.orders.length > 0) {
+                    const nextOrder = this.state.orders.shift();
+                    if (nextOrder === Destination.B) {
+                        this.addEvent(EventType.OrderDeliveredAtDestination, event.time + deliveryTimeToDestinationB);
+                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + deliveryTimeToDestinationB * 2);
+                    } else {
+                        this.addEvent(EventType.OrderDeliveredAtPort, event.time + deliveryTimeToPort);
+                        this.addEvent(EventType.PickUpOrderAtFactory, event.time + deliveryTimeToPort * 2);
                     }
                 }
                 break;
-            case EventType.OrderDeliveredAtPort: {
-                if(this.isShipAvailable(event)) {
-                    this.addEvent(EventType.OrderDeliveredAtDestinationA, event.time + 4);
-                    this.addEvent(EventType.PickUpOrderAtPort, event.time + 4 * 2);
+            case EventType.OrderDeliveredAtPort:
+                if (this.state.shipAvailableAtPort) {
+                    this.addEvent(EventType.OrderDeliveredAtDestination, event.time + deliveryTimeToDestinationA);
+                    this.addEvent(EventType.PickUpOrderAtPort, event.time + deliveryTimeToDestinationA * 2);
+                    this.state.shipAvailableAtPort = false;
+                } else {
+                    this.state.ordersAvailableAtPort++;
                 }
                 break;
-            }
-            case EventType.PickUpOrderAtPort: {
-                if(this.isOrderAtPortAvailable()) {
-                    this.addEvent(EventType.OrderDeliveredAtDestinationA, event.time + 4);
+            case EventType.PickUpOrderAtPort:
+                if (this.state.ordersAvailableAtPort > 0) {
+                    this.addEvent(EventType.OrderDeliveredAtDestination, event.time + 4);
                     this.addEvent(EventType.PickUpOrderAtPort, event.time + 4 * 2);
+                    this.state.ordersAvailableAtPort--;
+                } else {
+                    this.state.shipAvailableAtPort = true;
                 }
-            }
+                break;
+            case EventType.OrderDeliveredAtDestination:
+                this.state.ordersDelivered++;
         }
-    }
-
-    private isShipAvailable(event: TransportTycoonEvent) {
-        return !this.allEvents.some(({type, time}) => type === EventType.PickUpOrderAtPort && time > event.time);
-    }
-
-    private isOrderAtPortAvailable(): boolean {
-        const orderDeliveredToPort = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtPort).length;
-        const ordersPickedUpFromPort = this.processedEvents.filter(({type}) => type === EventType.PickUpOrderAtPort).length;
-        return orderDeliveredToPort > ordersPickedUpFromPort;
-    }
-
-    private allOrdersDelivered(): boolean {
-        const ordersProduced = this.allEvents.filter(({type}) => type === EventType.ProduceOrderA || type === EventType.ProduceOrderB).length;
-        const ordersDelivered = this.processedEvents.filter(({type}) => type === EventType.OrderDeliveredAtDestinationA || type === EventType.OrderDeliveredAtDestinationB ).length;
-        return ordersProduced === ordersDelivered;
-    }
-
-    private nextFactoryOrder(): TransportTycoonEvent | undefined {
-        const numberOfOrdersPickedUp = this.processedEvents.filter(({type}) => type === EventType.PickUpOrderAtFactory).length;
-        const ordersAtFactory = this.allEvents.filter(({type}) => type === EventType.ProduceOrderA || type === EventType.ProduceOrderB);
-        return ordersAtFactory[numberOfOrdersPickedUp]
     }
 }
 
 export default (orders: Destination[]) => {
-    const eventStore = new EventStore();
-    orders.forEach(order => {
-        const produceOrderEvent = order === Destination.B ? EventType.ProduceOrderB : EventType.ProduceOrderA;
-        eventStore.addEvent(produceOrderEvent, 0);
-    });
-    eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
-    eventStore.addEvent(EventType.PickUpOrderAtFactory, 0);
-    eventStore.addEvent(EventType.PickUpOrderAtPort, 0);
-    return eventStore.simulate();
+    const transportTycoon = new TransportTycoon(orders);
+    return transportTycoon.simulate();
 }
